@@ -1,0 +1,42 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Hiyo Lenses</title>
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}video,img#src{display:none}
+#hud{position:absolute;left:8px;top:8px;color:#fff;font:12px system-ui;background:rgba(0,0,0,.4);padding:3px 6px;border-radius:6px;display:none}</style></head>
+<body><canvas id="out"></canvas><video id="v" playsinline muted autoplay></video><img id="src"><div id="hud"></div>
+<script src="lenses/engine.js"></script>
+<script>
+// Standalone lens page. Used by the Android app's WebView camera (same engine as web) and by the web lens test.
+// Query: ?img=<url> (test against an image) | ?facing=user|environment, &lens=<id>, &hud=1
+(async () => {
+  const q = new URLSearchParams(location.search), base = location.pathname.replace(/lens\.html$/, '');
+  const post = m => (window.ReactNativeWebView ? window.ReactNativeWebView.postMessage(JSON.stringify(m)) : window.parent !== window && window.parent.postMessage(m, '*'));
+  const eng = new HiyoLens.LensEngine(document.getElementById('out'), { base }); window.eng = eng;
+  const hud = document.getElementById('hud'); if (q.get('hud')) hud.style.display = 'block';
+  eng.onFrame = i => { hud.textContent = `${i.fps} fps · ${i.faces} face(s)`; post({ type: 'stats', ...i }); };
+  const cat = id => (HiyoLens.FILTERS.find(f => f.id === id) || {}).category;
+  const setLens = (ids, extra) => { const L = { beauty: [], color: null, ar: null, ...(extra || {}) };
+    for (const id of ids) { const c = cat(id); if (c === 'beauty') L.beauty.push(id); else if (c === 'lut') L.color = id; else if (c === 'ar') L.ar = id; }
+    if (L.beauty.includes('big-eyes')) {} eng.setLenses(L); };
+  // big-eyes is an AR filter in the registry but a shader effect: engine checks has('big-eyes') via ar slot.
+  let stream = null, facing = q.get('facing') || 'user';
+  const startCam = async () => { stream?.getTracks().forEach(t => t.stop());
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, ...(innerHeight > innerWidth ? { width: { ideal: 720 }, height: { ideal: 1280 } } : { width: { ideal: 1280 }, height: { ideal: 720 } }) }, audio: false });
+    const v = document.getElementById('v'); v.srcObject = stream; await v.play(); eng.setSource(v, facing === 'user');
+    document.getElementById('out').style.transform = facing === 'user' ? 'scaleX(-1)' : 'none'; };
+  try {
+    await eng.ready;
+    if (q.get('img')) { const im = document.getElementById('src'); im.crossOrigin = 'anonymous'; im.src = q.get('img'); await im.decode(); eng.setSource(im); }
+    else await startCam();
+    if (q.get('lens')) setLens(q.get('lens').split(','));
+    eng.start(); post({ type: 'ready' }); document.body.dataset.ready = '1';
+  } catch (e) { post({ type: 'error', message: String(e && e.message || e) }); document.body.dataset.error = String(e); }
+  const onMsg = async m => { try { m = typeof m === 'string' ? JSON.parse(m) : m; if (!m || !m.type) return;
+    if (m.type === 'set') setLens(m.ids || [], m.extra);
+    if (m.type === 'facing') { facing = m.facing; await startCam(); }
+    if (m.type === 'photo') { const b = await eng.capturePhoto(); const r = new FileReader(); r.onload = () => post({ type: 'photo', dataUrl: r.result }); r.readAsDataURL(b); }
+    if (m.type === 'rec-start') { let mic; try { mic = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch {} eng.startRecording(mic); post({ type: 'recording' }); }
+    if (m.type === 'rec-stop') { const b = await eng.stopRecording(); const r = new FileReader(); r.onload = () => post({ type: 'video', dataUrl: r.result, mime: b.type }); r.readAsDataURL(b); }
+  } catch (e) { post({ type: 'error', message: String(e && e.message || e) }); } };
+  window.addEventListener('message', e => onMsg(e.data)); document.addEventListener('message', e => onMsg(e.data)); window.hiyoLensMsg = onMsg;
+})();
+</script></body></html>
