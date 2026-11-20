@@ -1,0 +1,17 @@
+{
+  "id": "/hiyo-web/",
+  "name": "Hiyo",
+  "short_name": "Hiyo",
+  "description": "A social app for people tired of wars. You control your feed.",
+  "start_url": "/hiyo-web/",
+  "scope": "/hiyo-web/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#FFF6F1",
+  "theme_color": "#FFF6F1",
+  "icons": [
+    { "src": "/hiyo-web/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/hiyo-web/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/hiyo-web/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
